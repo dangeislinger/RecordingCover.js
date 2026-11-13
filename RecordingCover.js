@@ -359,7 +359,7 @@ async function setEnglishCaption(api, filename, caption) {
 function uploadChecked(api, fileInput, filename, text) {
     return new Promise((resolve, reject) => {
         api.upload(fileInput, { filename: filename, text: text,
-            comment: 'Uploaded via userscript User:Widgetkid/RecordingCover.js', assert: 'user'
+            comment: 'Uploaded via userscript User:Widgetkid/RecordingCover.js v1.0.9', assert: 'user'
         }).done(resolve).fail((code, result) => {
             if (result && result.upload) resolve(result);
             else reject(new Error((result && result.error && result.error.info) || code || 'Upload failed'));
@@ -393,7 +393,7 @@ function openUploadDialogRecording() {
 
                 <p style="display:flex; align-items:center; gap:0.5em; flex-wrap:wrap;">
                     <input type="checkbox" id="upload-public-domain">
-                    <label for="upload-public-domain">Public Domain</label>
+                    <label for="upload-public-domain">Public Domain</label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                     <select id="upload-pd-tag" disabled>
                         <option value=""></option>
                         <option value="{{PD-US-expired}}">{{PD-US-expired}}</option>
@@ -424,7 +424,7 @@ function openUploadDialogRecording() {
                 </p>
 
 				<p style="margin-top:1em; text-align: right;">
-                    <small>v1.0.8</small>
+                    <small>v1.0.9</small>
                 </p>
 
             </div>
