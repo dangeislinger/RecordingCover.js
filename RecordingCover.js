@@ -367,6 +367,62 @@ function uploadChecked(api, fileInput, filename, text) {
     });
 }
 
+// ============================================================
+// NETWORK: Create the English Wikipedia File talk page after upload
+// ============================================================
+async function createFileTalkPage(api, article, filename) {
+    const talkTitle = 'File talk:' + filename;
+    const existing = await api.get({
+        action: 'query', prop: 'info', titles: talkTitle, formatversion: 2
+    });
+    const talkPage = existing.query && existing.query.pages && existing.query.pages[0];
+    if (!talkPage || talkPage.invalid) throw new Error('Unable to check the File talk page.');
+    if (!talkPage.missing) {
+        mw.notify('File talk page already exists; left untouched: ' + talkTitle, { type: 'info' });
+        return;
+    }
+
+    const result = await api.get({
+        action: 'query', prop: 'revisions', rvprop: 'content', rvslots: 'main',
+        titles: article, formatversion: 2
+    });
+    const page = result.query && result.query.pages && result.query.pages[0];
+    const revision = page && page.revisions && page.revisions[0];
+    const pageText = revision && revision.slots && revision.slots.main && revision.slots.main.content;
+    if (typeof pageText !== 'string') throw new Error('Unable to read the article for album/song detection.');
+    // Ignore comments and nowiki examples when detecting the article infobox.
+    const detectionText = pageText.replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<nowiki\b[^>]*>[\s\S]*?<\/nowiki\s*>/gi, '');
+    const project = /\{\{\s*Infobox album\b/i.test(detectionText) ? 'Albums'
+        : /\{\{\s*Infobox song\b/i.test(detectionText) ? 'Songs' : null;
+    if (!project) {
+        mw.notify('No album or song infobox found; File talk page creation skipped.', { type: 'info' });
+        return;
+    }
+    const text = '{{WikiProject banner shell|\n{{WikiProject ' + project + '}}\n}}';
+    try {
+        // createonly also protects a page created after the existence check.
+        const edit = await new Promise((resolve, reject) => {
+            api.postWithToken('csrf', {
+                action: 'edit', title: talkTitle, text: text, createonly: true,
+                assert: 'user', formatversion: 2,
+                summary: 'Create file talk page with WikiProject ' + project +
+                    ' banner (script upload via [[User:Widgetkid/RecordingCover.js]])'
+            }).done(resolve).fail((code, details) => reject({ code: code, details: details }));
+        });
+        if (!edit.edit || edit.edit.result !== 'Success') {
+            throw new Error('The API did not confirm File talk page creation.');
+        }
+        mw.notify('File talk page created: ' + talkTitle, { type: 'success' });
+    } catch (error) {
+        if (error.code === 'articleexists') {
+            mw.notify('File talk page already exists; left untouched: ' + talkTitle, { type: 'info' });
+            return;
+        }
+        throw error;
+    }
+}
+
 function openUploadDialogRecording() {
 
     mw.loader.using(['jquery.ui', 'mediawiki.api', 'mediawiki.ForeignApi']).then(() => {
@@ -515,6 +571,13 @@ function openUploadDialogRecording() {
                                 mw.notify('File uploaded, but the English caption could not be saved. Add it manually: ' +
                                     coverDescription(article), { type: 'warn' });
                             }
+                        }
+                        try {
+                            await createFileTalkPage(api, article, uploadedFilename);
+                        } catch (err) {
+                            console.error(err);
+                            mw.notify('File uploaded, but the File talk page could not be created. Continuing with article updates.',
+                                { type: 'warn' });
                         }
                         try {
                             await updateInfobox(api, article, uploadedFilename, addInfobox);
