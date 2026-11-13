@@ -391,16 +391,18 @@ function openUploadDialogRecording() {
                 <p style="margin-top:1em;"><b>Date of Publication:</b></p>
                 <input id="date" type="text" style="width:100%;">
 
-                <p><input type="checkbox" id="upload-public-domain">
-                    <label for="upload-public-domain">Public Domain</label></p>
-                <p><label for="upload-pd-tag">PD Tag</label></p>
-                <select id="upload-pd-tag" style="width:100%;" disabled>
-                    <option value=""></option>
-                    <option value="{{PD-US-expired}}">{{PD-US-expired}}</option>
-                    <option value="{{PD-textlogo}}">{{PD-textlogo}}</option>
-                    <option value="{{PD-simple}}">{{PD-simple}}</option>
-                    <option value="{{PD-US-no notice}}">{{PD-US-no notice}}</option>
-                </select>
+                <p style="display:flex; align-items:center; gap:0.5em; flex-wrap:wrap;">
+                    <input type="checkbox" id="upload-public-domain">
+                    <label for="upload-public-domain">Public Domain</label>
+                    <select id="upload-pd-tag" disabled>
+                        <option value=""></option>
+                        <option value="{{PD-US-expired}}">{{PD-US-expired}}</option>
+                        <option value="{{PD-textlogo}}">{{PD-textlogo}}</option>
+                        <option value="{{PD-simple}}">{{PD-simple}}</option>
+                        <option value="{{PD-US-no notice}}">{{PD-US-no notice}}</option>
+                    </select>
+                    <label for="upload-pd-tag">PD Tag</label>
+                </p>
                 <p><label for="upload-pd-basis">PD Tag Basis</label></p>
                 <input id="upload-pd-basis" type="text" style="width:100%;" disabled>
                 <p><a href="https://en.wikipedia.org/wiki/Wikipedia:File_copyright_tags/Public_domain"
@@ -422,7 +424,7 @@ function openUploadDialogRecording() {
                 </p>
 
 				<p style="margin-top:1em; text-align: right;">
-                    <small>v1.1.1</small>
+                    <small>v1.0.8</small>
                 </p>
 
             </div>
@@ -433,9 +435,9 @@ function openUploadDialogRecording() {
         let busy = false;
         function syncPDFields() {
             const enabled = $dialog.find('#upload-public-domain').is(':checked');
+            const tagSelected = Boolean($dialog.find('#upload-pd-tag').val());
             $dialog.find('#upload-pd-tag').prop('disabled', !enabled).prop('required', enabled);
-            $dialog.find('#upload-pd-basis').prop('disabled', !enabled)
-                .prop('required', enabled && Boolean($dialog.find('#upload-pd-tag').val()));
+            $dialog.find('#upload-pd-basis').prop('disabled', !enabled).prop('required', enabled && tagSelected);
         }
         $dialog.on('change', '#upload-public-domain, #upload-pd-tag', syncPDFields);
         syncPDFields();
