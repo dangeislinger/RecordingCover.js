@@ -203,15 +203,6 @@ function updateSongInfoboxCover(pageText, filename) {
 // ============================================================
 // NETWORK: Upload file using MediaWiki API
 // ============================================================
-async function uploadFile(api, fileInput, filename, descriptionText) {
-    return api.upload(fileInput, {
-        filename: filename,
-        comment: "Uploaded via userscript User:Widgetkid/RecordingCover.js",
-        text: descriptionText,
-        ignorewarnings: 1
-    });
-}
-
 // ============================================================
 // NETWORK: After upload, fetch wikitext, insert image, save
 // ============================================================
@@ -343,9 +334,98 @@ async function removeProjectFlags(removeImageNeeded) {
 // ============================================================
 // UI: DIALOG + UPLOAD HANDLER
 // ============================================================
+
+const pdTags = ['{{PD-US-expired}}', '{{PD-textlogo}}', '{{PD-simple}}', '{{PD-US-no notice}}'];
+function commonsField(value) {
+    return '<nowiki>' + String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</nowiki>';
+}
+function coverDescription(article) { return 'Cover art for ' + article + '.'; }
+function buildCommonsDescriptionText(article, author, source, date, tag, basis) {
+    return '==Summary==\n{{Information\n|description={{en|1=' + commonsField(coverDescription(article)) + '}}\n' +
+        '|date=' + commonsField(date) + '\n|source=' + commonsField(source) +
+        '\n|author=' + commonsField(author) + '\n|permission=\n|other_versions=\n' +
+        '|other_fields={{Information field|name=PD Tag Basis|value=' + commonsField(basis) + '}}\n}}\n' +
+        '==Licensing==\n' + tag + '\n';
+}
+async function setEnglishCaption(api, filename, caption) {
+    const result = await api.get({ action: 'query', prop: 'info', titles: 'File:' + filename, formatversion: 2 });
+    const page = result.query.pages[0];
+    if (!page || !page.pageid || page.missing) throw new Error('Uploaded file page could not be found.');
+    await api.postWithToken('csrf', {
+        action: 'wbsetlabel', id: 'M' + page.pageid, language: 'en', value: caption,
+        summary: 'Set English recording-cover caption', assert: 'user'
+    });
+}
+function uploadChecked(api, fileInput, filename, text) {
+    return new Promise((resolve, reject) => {
+        api.upload(fileInput, { filename: filename, text: text,
+            comment: 'Uploaded via userscript User:Widgetkid/RecordingCover.js v1.0.9', assert: 'user'
+        }).done(resolve).fail((code, result) => {
+            if (result && result.upload) resolve(result);
+            else reject(new Error((result && result.error && result.error.info) || code || 'Upload failed'));
+        });
+    });
+}
+
+// ============================================================
+// NETWORK: Create the English Wikipedia File talk page after upload
+// ============================================================
+async function createFileTalkPage(api, article, filename) {
+    const talkTitle = 'File talk:' + filename;
+    const existing = await api.get({
+        action: 'query', prop: 'info', titles: talkTitle, formatversion: 2
+    });
+    const talkPage = existing.query && existing.query.pages && existing.query.pages[0];
+    if (!talkPage || talkPage.invalid) throw new Error('Unable to check the File talk page.');
+    if (!talkPage.missing) {
+        mw.notify('File talk page already exists; left untouched: ' + talkTitle, { type: 'info' });
+        return;
+    }
+
+    const result = await api.get({
+        action: 'query', prop: 'revisions', rvprop: 'content', rvslots: 'main',
+        titles: article, formatversion: 2
+    });
+    const page = result.query && result.query.pages && result.query.pages[0];
+    const revision = page && page.revisions && page.revisions[0];
+    const pageText = revision && revision.slots && revision.slots.main && revision.slots.main.content;
+    if (typeof pageText !== 'string') throw new Error('Unable to read the article for album/song detection.');
+    // Ignore comments and nowiki examples when detecting the article infobox.
+    const detectionText = pageText.replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<nowiki\b[^>]*>[\s\S]*?<\/nowiki\s*>/gi, '');
+    const project = /\{\{\s*Infobox album\b/i.test(detectionText) ? 'Albums'
+        : /\{\{\s*Infobox song\b/i.test(detectionText) ? 'Songs' : null;
+    if (!project) {
+        mw.notify('No album or song infobox found; File talk page creation skipped.', { type: 'info' });
+        return;
+    }
+    const text = '{{WikiProject banner shell|\n{{WikiProject ' + project + '}}\n}}';
+    try {
+        // createonly also protects a page created after the existence check.
+        const edit = await new Promise((resolve, reject) => {
+            api.postWithToken('csrf', {
+                action: 'edit', title: talkTitle, text: text, createonly: true,
+                assert: 'user', formatversion: 2,
+                summary: 'Create file talk page with WikiProject ' + project +
+                    ' banner (script upload via [[User:Widgetkid/RecordingCover.js]])'
+            }).done(resolve).fail((code, details) => reject({ code: code, details: details }));
+        });
+        if (!edit.edit || edit.edit.result !== 'Success') {
+            throw new Error('The API did not confirm File talk page creation.');
+        }
+        mw.notify('File talk page created: ' + talkTitle, { type: 'success' });
+    } catch (error) {
+        if (error.code === 'articleexists') {
+            mw.notify('File talk page already exists; left untouched: ' + talkTitle, { type: 'info' });
+            return;
+        }
+        throw error;
+    }
+}
+
 function openUploadDialogRecording() {
 
-    mw.loader.using(['jquery.ui', 'mediawiki.api']).then(() => {
+    mw.loader.using(['jquery.ui', 'mediawiki.api', 'mediawiki.ForeignApi']).then(() => {
 
         const articleTitle =
             mw.config.get('wgNamespaceNumber') === 0
@@ -356,7 +436,7 @@ function openUploadDialogRecording() {
             <div title="Upload Recording Cover">
 
                 <p style="margin-top:1em;"><b>Article Title:</b></p>
-                <input id="upload-article" type="text" style="width:100%;" value="${articleTitle}">
+                <input id="upload-article" type="text" style="width:100%;" value="">
 
                 <p style="margin-top:1em;"><b>Author / copyright holder (Artist or Label):</b></p>
                 <input id="upload-author" type="text" style="width:100%;">
@@ -366,6 +446,23 @@ function openUploadDialogRecording() {
                 
                 <p style="margin-top:1em;"><b>Date of Publication:</b></p>
                 <input id="date" type="text" style="width:100%;">
+
+                <p style="display:flex; align-items:center; gap:0.5em; flex-wrap:wrap;">
+                    <input type="checkbox" id="upload-public-domain">
+                    <label for="upload-public-domain">Public Domain</label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    <select id="upload-pd-tag" disabled>
+                        <option value=""></option>
+                        <option value="{{PD-US-expired}}">{{PD-US-expired}}</option>
+                        <option value="{{PD-textlogo}}">{{PD-textlogo}}</option>
+                        <option value="{{PD-simple}}">{{PD-simple}}</option>
+                        <option value="{{PD-US-no notice}}">{{PD-US-no notice}}</option>
+                    </select>
+                    <label for="upload-pd-tag">PD Tag</label>
+                </p>
+                <p><label for="upload-pd-basis">PD Tag Basis</label></p>
+                <input id="upload-pd-basis" type="text" style="width:100%;" disabled>
+                <p><a href="https://en.wikipedia.org/wiki/Wikipedia:File_copyright_tags/Public_domain"
+                    target="_blank" rel="noopener noreferrer">Public domain tag reference</a></p>
 
                 <p style="margin-top:1em;"><b>Select file:</b></p>
                 <input id="upload-file" type="file">
@@ -383,13 +480,23 @@ function openUploadDialogRecording() {
                 </p>
 
 				<p style="margin-top:1em; text-align: right;">
-                    <small>v1.0.8</small>
+                    <small>v1.0.9</small>
                 </p>
 
             </div>
         `);
 
+        $dialog.find('#upload-article').val(articleTitle);
         $('body').append($dialog);
+        let busy = false;
+        function syncPDFields() {
+            const enabled = $dialog.find('#upload-public-domain').is(':checked');
+            const tagSelected = Boolean($dialog.find('#upload-pd-tag').val());
+            $dialog.find('#upload-pd-tag').prop('disabled', !enabled).prop('required', enabled);
+            $dialog.find('#upload-pd-basis').prop('disabled', !enabled).prop('required', enabled && tagSelected);
+        }
+        $dialog.on('change', '#upload-public-domain, #upload-pd-tag', syncPDFields);
+        syncPDFields();
 
         $dialog.dialog({
             width: 500,
@@ -401,63 +508,87 @@ function openUploadDialogRecording() {
 
                 "Upload": async function () {
 
-                    const fileInput = document.getElementById("upload-file");
+                    if (busy) return;
+                    const field = id => $dialog.find('#' + id);
+                    const fileInput = field('upload-file')[0];
                     const file = fileInput.files[0];
-
-                    const article = $("#upload-article").val().trim();
-                    const author = $("#upload-author").val().trim();
-                    const source = $("#upload-source").val().trim();
-                    const date = $("#date").val().trim();
-                    const addInfobox = $("#add-infobox-recording").is(":checked");
-                    const removeImageNeeded = $("#cb_imageneeded-flag").is(":checked");
-                
-                    if (!file) {
-                        mw.notify("No file selected!", { type: "error" });
-                        return;
+                    const article = field('upload-article').val().trim();
+                    const author = field('upload-author').val().trim();
+                    const source = field('upload-source').val().trim();
+                    const date = field('date').val().trim();
+                    const isPD = field('upload-public-domain').is(':checked');
+                    const pdTag = field('upload-pd-tag').val();
+                    const basis = field('upload-pd-basis').val().trim();
+                    const addInfobox = field('add-infobox-recording').is(':checked');
+                    const removeImageNeeded = field('cb_imageneeded-flag').is(':checked');
+                    if (isPD && !pdTags.includes(pdTag)) {
+                        mw.notify('PD Tag required for Public Domain files.', { type: 'error' }); return;
                     }
-
-                    // Build filename
-                    const extension =
-                        (file.type.includes('image/')
-                            ? file.type.split('/').pop()
-                            : file.name.split('.').pop()).toLowerCase();
-					// console.log("extension = " + extension);
-
-                    const filename = `${article} (Recording Cover).${extension}`.replace(/[#<>\[\]|:{}/]+|~{3,}/g, ' -');
-                    // console.log("filename = " + filename);
-                    
+                    if (isPD && !basis) {
+                        mw.notify('PD Tag Basis required for Public Domain files.', { type: 'error' }); return;
+                    }
+                    if (isPD && !source) {
+                        mw.notify('Source required for Public Domain files.', { type: 'error' }); return;
+                    }
+                    if (!file) { mw.notify('No file selected!', { type: 'error' }); return; }
+                    const extension = (file.type.includes('image/')
+                        ? file.type.split('/').pop() : file.name.split('.').pop()).toLowerCase();
+                    const filename = `${article} (Recording Cover).${extension}`
+                        .replace(/[#<>\[\]|:{}/]+|~{3,}/g, ' -');
                     const api = new mw.Api();
-                    const descriptionText = buildDescriptionText(article, author, source, date);
-                    // console.log("descriptionText = " + descriptionText);
-
+                    const uploadApi = isPD ? new mw.ForeignApi('https://commons.wikimedia.org/w/api.php') : api;
+                    const descriptionText = isPD
+                        ? buildCommonsDescriptionText(article, author, source, date, pdTag, basis)
+                        : buildDescriptionText(article, author, source, date);
+                    busy = true;
+                    const $buttons = $dialog.dialog('widget').find('.ui-dialog-buttonpane button');
+                    $buttons.prop('disabled', true);
                     try {
-                        // Upload file
-                        const uploadResult = await uploadFile(api, fileInput, filename, descriptionText);
-
-                        if (uploadResult.warnings) {
-                            mw.notify("Upload succeeded with warnings: " + JSON.stringify(uploadResult.warnings), { type: "warn" });
+                        let result;
+                        try {
+                            result = await uploadChecked(uploadApi, fileInput, filename, descriptionText);
+                        } catch (err) {
+                            console.error(err);
+                            mw.notify('Error during upload: ' + err.message +
+                                '. Article and talk page were not changed.', { type: 'error' }); return;
                         }
-
-                        mw.notify("File uploaded: " + uploadResult.upload.filename);
-                    	$('#new_file_name').text("Uploaded File: "+filename);
-
-                    } catch (err) {
-                        console.error(err);
-                        // 2026-03-07: Supressing error message. Unclear why there's an error to catch when upload works.
-						// Added infobox update to a separate try/catch clause.
-                        // mw.notify("Error during upload.", { type: "error" });
-                    }
-
-                    try {
-
-                        // Update article (only if checkbox is checked)
-                        await updateInfobox(api, article, filename, addInfobox);
-                        
-                        if (removeImageNeeded)
-                        	await removeProjectFlags(removeImageNeeded);
-                    } catch (err) {
-                        console.error(err);
-                        mw.notify("Error during article update.", { type: "error" });
+                        const upload = result && result.upload;
+                        if (upload && upload.warnings) {
+                            mw.notify('Upload warnings: ' + JSON.stringify(upload.warnings), { type: 'warn' });
+                        }
+                        if (!upload || upload.result !== 'Success' || !upload.filename) {
+                            mw.notify('Upload not completed. Article and talk page were not changed. Resolve any warnings before trying again.',
+                                { type: 'error' }); return;
+                        }
+                        const uploadedFilename = upload.filename;
+                        field('new_file_name').text('Uploaded File: ' + uploadedFilename);
+                        mw.notify('File uploaded to ' + (isPD ? 'Wikimedia Commons: ' : 'Wikipedia: ') + uploadedFilename);
+                        if (isPD) {
+                            try {
+                                await setEnglishCaption(uploadApi, uploadedFilename, coverDescription(article));
+                            } catch (err) {
+                                console.error(err);
+                                mw.notify('File uploaded, but the English caption could not be saved. Add it manually: ' +
+                                    coverDescription(article), { type: 'warn' });
+                            }
+                        }
+                        try {
+                            await createFileTalkPage(api, article, uploadedFilename);
+                        } catch (err) {
+                            console.error(err);
+                            mw.notify('File uploaded, but the File talk page could not be created. Continuing with article updates.',
+                                { type: 'warn' });
+                        }
+                        try {
+                            await updateInfobox(api, article, uploadedFilename, addInfobox);
+                            if (removeImageNeeded) await removeProjectFlags(removeImageNeeded);
+                        } catch (err) {
+                            console.error(err);
+                            mw.notify('File uploaded, but an article or talk-page update failed.', { type: 'error' });
+                        }
+                    } finally {
+                        busy = false;
+                        $buttons.prop('disabled', false);
                     }
 
                 },
