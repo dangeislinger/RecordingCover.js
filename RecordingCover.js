@@ -238,7 +238,7 @@ async function updateInfobox(api, article, filename, addInfobox) {
     // Step 2: Update infobox cover (if checkbox is checked)
     if (addInfobox) {
         const updatedText = updateInfoboxCover(pageText, filename);
-// console.log("updatedText = " + updatedText);
+		// console.log("updatedText = " + updatedText);
 
         if (!updatedText) {
             mw.notify("No infobox found — skipping article edit.", { type: "warn" });
@@ -272,11 +272,10 @@ async function updateInfobox(api, article, filename, addInfobox) {
 // REMOVE FLAGS
 // ============================================================
 async function removeProjectFlags(removeImageNeeded) {
-console.log("275");
     const articleTitle = mw.config.get('wgPageName');  // Get the article's title
-console.log("articleTitle = " + articleTitle);
+	// console.log("articleTitle = " + articleTitle);
     const talkPageTitle = 'Talk:' + articleTitle;       // Construct the talk page title
-console.log("talkPageTitle = " + talkPageTitle);
+	// console.log("talkPageTitle = " + talkPageTitle);
     const api = new mw.Api();
 
     try {
@@ -296,7 +295,7 @@ console.log("talkPageTitle = " + talkPageTitle);
         }
 
         const pageText = result.query.pages[0].revisions[0].content;
-console.log("pageText = " + pageText);
+		// console.log("pageText = " + pageText);
 
         // Step 2: Remove the flags from the WikiProject Albums template
         let updatedPageText = pageText;
@@ -304,12 +303,12 @@ console.log("pageText = " + pageText);
         // Remove the imageneeded flag if it exists
         if (removeImageNeeded)
         	updatedPageText = updatedPageText.replace(/\|imageneeded=[^|}]*\s*/g, '');
-console.log("updatedPageText 1= " + updatedPageText);
+			// console.log("updatedPageText 1= " + updatedPageText);
         	updatedPageText = updatedPageText.replace(/\| imageneeded=[^|}]*\s*/g, '');
-console.log("updatedPageText 2= " + updatedPageText);
+			// console.log("updatedPageText 2= " + updatedPageText);
 
 			const flagCounter = pageText.indexOf("| imageneeded=")
-console.log("flagCounter= " + flagCounter);
+			// console.log("flagCounter= " + flagCounter);
 			
 			// Step 3: Save the updated content back to the talk page
 				
@@ -384,7 +383,7 @@ function openUploadDialogRecording() {
                 </p>
 
 				<p style="margin-top:1em; text-align: right;">
-                    <small>v1.0.7</small>
+                    <small>v1.0.8</small>
                 </p>
 
             </div>
@@ -422,7 +421,7 @@ function openUploadDialogRecording() {
                         (file.type.includes('image/')
                             ? file.type.split('/').pop()
                             : file.name.split('.').pop()).toLowerCase();
-                    // console.log("extension = " + extension);
+					// console.log("extension = " + extension);
 
                     const filename = `${article} (Recording Cover).${extension}`.replace(/[#<>\[\]|:{}/]+|~{3,}/g, ' -');
                     // console.log("filename = " + filename);
@@ -455,9 +454,7 @@ function openUploadDialogRecording() {
                         await updateInfobox(api, article, filename, addInfobox);
                         
                         if (removeImageNeeded)
-console.log("460");
                         	await removeProjectFlags(removeImageNeeded);
-console.log("462");
                     } catch (err) {
                         console.error(err);
                         mw.notify("Error during article update.", { type: "error" });
