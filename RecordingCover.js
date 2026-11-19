@@ -1,4 +1,4 @@
-// ==UserScript==
+// ==UserScript== <nowiki>
 // @name        Dialog Upload Script — Recording Cover Version
 // @description Upload an recording cover using a dialog and automatically insert it into the article's infobox
 // ==/UserScript==
@@ -610,3 +610,4 @@ function openUploadDialogRecording() {
 //	}
 
 })();
+// </nowiki>
