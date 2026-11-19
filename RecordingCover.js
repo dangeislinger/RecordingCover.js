@@ -73,7 +73,7 @@ function updateInfoboxCover(pageText, filename) {
 // ============================================================
 function updateAlbumInfoboxCover(pageText, filename) {
 
-    const coverLine = `| cover = ${filename}`;
+    const coverLine = `| cover         = ${filename}`;
 
     // -----------------------------------------------------
     // 1) Find Infobox album start
@@ -139,7 +139,7 @@ function updateAlbumInfoboxCover(pageText, filename) {
 // ============================================================
 function updateSongInfoboxCover(pageText, filename) {
 
-    const coverLine = `| cover = ${filename}`;
+    const coverLine = `| cover         = ${filename}`;
 
     // -----------------------------------------------------
     // 1) Find Infobox song start
@@ -336,6 +336,116 @@ async function removeProjectFlags(removeImageNeeded) {
 // ============================================================
 
 const pdTags = ['{{PD-US-expired}}', '{{PD-textlogo}}', '{{PD-simple}}', '{{PD-US-no notice}}'];
+
+// ============================================================
+// NEW PRESETS
+// To add a new preset, add one more object to this array.
+//   label  - text shown in the Preset drop-down
+//   author - fills "Author / copyright holder"
+//   pdTag  - must match one of the PD Tag drop-down options (see pdTags above);
+//            if it doesn't match, the PD Tag selection is left unchanged
+//   basis  - fills "PD Tag Basis"
+// Picking a preset also checks the Public Domain checkbox.
+// ============================================================
+const presets = [
+    {
+        label: "Brunswick Records 'B' shield & scrollwork",
+        author: "Brunswick Records",
+        pdTag: "{{PD-US-expired}}",
+        basis: "Published in 1924, so its U.S. copyright term has expired."
+    },
+    {
+        label: "Buena Vista Records Stylized text",
+        author: "Buena Vista Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Consists only of simple geometric shapes and lettering below the threshold of originality."
+    },
+    {
+        label: "Capitol Records Dome",
+        author: "Capitol Records",
+        pdTag: "{{PD-US-no notice}}",
+        basis: "Published in 1953 in the U.S. without a required copyright notice."
+    },
+    {
+        label: "Columbia Records Music notes logos",
+        author: "Columbia Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Composed of basic musical note forms and simple shapes lacking copyrightable authorship."
+    },
+    {
+        label: "Columbia Records Walking eye logo",
+        author: "Columbia Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Uses simple graphic shapes and lines that do not meet the threshold of originality."
+    },
+    {
+        label: "Decca Records Stylized text logo",
+        author: "Decca Records",
+        pdTag: "{{PD-textlogo}}",
+        basis: "Consists solely of stylized text/wordmark elements ineligible for copyright protection."
+    },
+    {
+        label: "Epic Records Radial starburst",
+        author: "Epic Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Formed from basic radial lines and simple geometric elements below the originality threshold."
+    },
+    {
+        label: "Epic Records Scripted text",
+        author: "Epic Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Consists of basic scripted lettering and simple strokes without copyrightable creative expression."
+    },
+    {
+        label: "RCA Records Stylized text logo",
+        author: "RCA Records",
+        pdTag: "{{PD-textlogo}}",
+        basis: "Comprises a stylized text wordmark that is not eligible for copyright."
+    },
+    {
+        label: "RCA Records Stylized text with lightning",
+        author: "RCA Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Combines simple lettering with basic lightning bolt shapes lacking sufficient originality."
+    },
+    {
+        label: "Savoy Records Hand drawn musicians",
+        author: "Savoy Records",
+        pdTag: "{{PD-US-no notice}}",
+        basis: "Published in the U.S. in the 1940s without a valid copyright notice."
+    },
+    {
+        label: "Savoy Records Music note logo",
+        author: "Savoy Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Relies on a basic music note motif and simple shapes below the originality threshold."
+    },
+    {
+        label: "Tower Records Logo",
+        author: "Tower Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Made up of simple geometric forms and text below the threshold of originality."
+    },
+    {
+        label: "United Artists Records Stylized UA logo",
+        author: "United Artists Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Uses simple initials and basic geometric styling without copyrightable originality."
+    },
+    {
+        label: "Verve Records Stylized text logo",
+        author: "Verve Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Consists of simple stylized lettering below the threshold of copyright protection."
+    },
+    {
+        label: "Victor / RCA Victor Dog (Nipper)",
+        author: "Victor / RCA Victor",
+        pdTag: "{{PD-US-expired}}",
+        basis: "Based on an 1899 work whose U.S. copyright term has expired."
+    }
+];
+
 function commonsField(value) {
     return '<nowiki>' + String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</nowiki>';
 }
@@ -359,7 +469,7 @@ async function setEnglishCaption(api, filename, caption) {
 function uploadChecked(api, fileInput, filename, text) {
     return new Promise((resolve, reject) => {
         api.upload(fileInput, { filename: filename, text: text,
-            comment: 'Uploaded via userscript User:Widgetkid/RecordingCover.js v1.0.9', assert: 'user'
+            comment: 'Uploaded via userscript User:Widgetkid/RecordingCover.js v1.1.0', assert: 'user'
         }).done(resolve).fail((code, result) => {
             if (result && result.upload) resolve(result);
             else reject(new Error((result && result.error && result.error.info) || code || 'Upload failed'));
@@ -438,11 +548,16 @@ function openUploadDialogRecording() {
                 <p style="margin-top:1em;"><b>Article Title:</b></p>
                 <input id="upload-article" type="text" style="width:100%;" value="">
 
-                <p style="margin-top:1em;"><b>Author / copyright holder (Artist or Label):</b></p>
-                <input id="upload-author" type="text" style="width:100%;">
-
                 <p style="margin-top:1em;"><b>Source of the file:</b></p>
                 <input id="upload-source" type="text" style="width:100%;">
+
+                <p style="margin-top:1em;"><b>Preset:</b></p>
+                <select id="upload-preset" style="width:100%;">
+                    <option value=""></option>
+                </select>
+
+                <p style="margin-top:1em;"><b>Author / copyright holder (Artist or Label):</b></p>
+                <input id="upload-author" type="text" style="width:100%;">
                 
                 <p style="margin-top:1em;"><b>Date of Publication:</b></p>
                 <input id="date" type="text" style="width:100%;">
@@ -480,13 +595,20 @@ function openUploadDialogRecording() {
                 </p>
 
 				<p style="margin-top:1em; text-align: right;">
-                    <small>v1.0.9</small>
+                    <small><a href="https://en.wikipedia.org/wiki/User:Widgetkid/RecordingCover#Change_log" target="_blank" rel="noopener noreferrer">v1.1.0</a></small>
                 </p>
 
             </div>
         `);
 
         $dialog.find('#upload-article').val(articleTitle);
+
+        // Build the Preset drop-down from the presets array.
+        // .text() is used so quotes and ampersands in labels display correctly.
+        presets.forEach((preset, index) => {
+            $('<option>').val(String(index)).text(preset.label).appendTo($dialog.find('#upload-preset'));
+        });
+
         $('body').append($dialog);
         let busy = false;
         function syncPDFields() {
@@ -498,11 +620,41 @@ function openUploadDialogRecording() {
         $dialog.on('change', '#upload-public-domain, #upload-pd-tag', syncPDFields);
         syncPDFields();
 
+        // Apply a preset. Selecting the blank option leaves all fields as they are.
+        $dialog.on('change', '#upload-preset', function () {
+            const value = $(this).val();
+            if (value === '') return;
+            const preset = presets[Number(value)];
+            if (!preset) return;
+
+            // 1. Author / copyright holder
+            $dialog.find('#upload-author').val(preset.author);
+
+            // 2. Public Domain checkbox (sync first so the PD fields are enabled)
+            $dialog.find('#upload-public-domain').prop('checked', true);
+            syncPDFields();
+
+            // 3. PD Tag (only if the tag exists in the drop-down; otherwise unchanged)
+            const $pdTag = $dialog.find('#upload-pd-tag');
+            const tagExists = $pdTag.find('option').filter(function () {
+                return this.value === preset.pdTag;
+            }).length > 0;
+            if (tagExists) $pdTag.val(preset.pdTag);
+
+            // 4. PD Tag Basis
+            $dialog.find('#upload-pd-basis').val(preset.basis);
+
+            // Refresh the required flags now that the tag may have changed
+            syncPDFields();
+        });
+
         $dialog.dialog({
             width: 500,
             modal: true,
             closeOnEscape: true,
             autoOpen: true,
+            // NEW: Put the cursor in the Source of the file field when the form opens.
+            open: () => { $dialog.find('#upload-source').trigger('focus'); },
             close: () => $dialog.remove(),
             buttons: {
 
