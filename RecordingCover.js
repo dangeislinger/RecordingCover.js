@@ -448,7 +448,7 @@ const presets = [
 
 function commonsField(value) {
     return '<nowiki>' + String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</nowiki>';
-}
+} // <nowiki>
 function coverDescription(article) { return 'Cover art for ' + article + '.'; }
 function buildCommonsDescriptionText(article, author, source, date, tag, basis) {
     return '==Summary==\n{{Information\n|description={{en|1=' + commonsField(coverDescription(article)) + '}}\n' +
