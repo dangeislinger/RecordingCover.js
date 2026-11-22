@@ -579,7 +579,7 @@ const presets = [
         label: "Victor / RCA Victor Dog (Nipper)",
         author: "Victor / RCA Victor",
         pdTag: "{{PD-US-expired}}",
-        basis: "Based on an 1899 work whose U.S. copyright term has expired."
+        basis: "Victor logo based on an 1899 work whose U.S. copyright term has expired."
     }
 ];
 
