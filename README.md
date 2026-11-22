@@ -28,4 +28,4 @@ For full documentation, change log, etc., visit [User:Widgetkid/RecordingCover](
 
 ---
 
-!(screenshots/Screenshot v1.1.1.png)
+![Screenshot](screenshots/Screenshot%20v1.1.1.png)
