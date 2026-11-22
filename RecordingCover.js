@@ -3,6 +3,9 @@
 // @description Upload an recording cover using a dialog and automatically insert it into the article's infobox
 // ==/UserScript==
 (() => { 
+// Single place to change the script version (used in the dialog link and the upload comment).
+const SCRIPT_VERSION = 'v1.1.1';
+
 mw.loader.using(['mediawiki.util']).then(() => {
     $(document).ready(() => {
         const link = mw.util.addPortletLink(
@@ -206,6 +209,8 @@ function updateSongInfoboxCover(pageText, filename) {
 // ============================================================
 // NETWORK: After upload, fetch wikitext, insert image, save
 // ============================================================
+// Returns true if the article was edited and saved, false otherwise.
+// (The page reload now happens in the Upload handler, after all steps finish.)
 async function updateInfobox(api, article, filename, addInfobox) {
     let pageText;
 
@@ -233,7 +238,7 @@ async function updateInfobox(api, article, filename, addInfobox) {
 
         if (!updatedText) {
             mw.notify("No infobox found — skipping article edit.", { type: "warn" });
-            return;
+            return false;
         }
 
         // Step 3: Save wikitext
@@ -244,11 +249,7 @@ async function updateInfobox(api, article, filename, addInfobox) {
             }));
 
             mw.notify("Infobox updated successfully! Reloading…");
-
-            // 👇 RELOAD HERE
-            setTimeout(() => {
-                location.reload();
-            }, 4000);
+            return true;
 
         } catch (e) {
             mw.notify("Failed to update article text.", { type: "error" });
@@ -256,18 +257,128 @@ async function updateInfobox(api, article, filename, addInfobox) {
         }
     } else {
         mw.notify("Infobox update skipped.", { type: "info" });
+        return false;
     }
+}
+
+// ============================================================
+// REMOVE NEEDS-INFOBOX TAGS (helpers)
+// ============================================================
+
+// Given the index of an opening "{{", return the index just past its matching "}}"
+// (nested templates included), or -1 if the template is never closed.
+function findTemplateEnd(text, start) {
+    let depth = 0;
+    let i = start;
+    while (i < text.length) {
+        if (text.startsWith('{{', i)) {
+            depth++;
+            i += 2;
+        } else if (text.startsWith('}}', i)) {
+            depth--;
+            i += 2;
+            if (depth === 0) return i;
+        } else {
+            i++;
+        }
+    }
+    return -1;
+}
+
+// Remove text.slice(start, end). If what's left of that line would be blank,
+// remove the whole line (including its line break) instead.
+// Returns the new text and the index where the text following the cut now begins.
+function cutMatch(text, start, end) {
+    const lineStart = start === 0 ? 0 : text.lastIndexOf('\n', start - 1) + 1;
+    let lineEnd = text.indexOf('\n', end);
+    const hasNewline = lineEnd !== -1;
+    if (!hasNewline) lineEnd = text.length;
+
+    const aloneOnLine = text.slice(lineStart, start).trim() === '' &&
+                        text.slice(end, lineEnd).trim() === '';
+    if (aloneOnLine) {
+        return {
+            text: text.slice(0, lineStart) + text.slice(hasNewline ? lineEnd + 1 : lineEnd),
+            pos: lineStart
+        };
+    }
+    return { text: text.slice(0, start) + text.slice(end), pos: start };
+}
+
+// Finds and removes every needs-infobox tag in the given talk page wikitext:
+//   |needs-infobox=yes   |needs-infobox=y
+//   {{Infobox requested}}  {{Infobox requested|...}}
+//   {{Reqinfobox}}         {{Reqinfobox|...}}
+// Matching is case-insensitive, tolerates spaces/underscores and whitespace
+// around "|" and "=", and treats template parameters (including nested
+// templates) as part of the match. Returns { text, removed }, where removed
+// lists the exact text removed by each match.
+function removeNeedsInfoboxTags(text) {
+    const removed = [];
+    let searchFrom;
+
+    // 1) Templates: {{Infobox requested...}} and {{Reqinfobox...}}
+    const templateStart = /\{\{[ \t\r\n]*(?:Infobox[ _]+requested|Reqinfobox)[ \t\r\n]*(?=\||\}\})/gi;
+    searchFrom = 0;
+    while (true) {
+        templateStart.lastIndex = searchFrom;
+        const m = templateStart.exec(text);
+        if (!m) break;
+        const end = findTemplateEnd(text, m.index);
+        if (end === -1) {            // Unclosed template: leave it alone
+            searchFrom = m.index + m[0].length;
+            continue;
+        }
+        removed.push(text.slice(m.index, end));
+        const cut = cutMatch(text, m.index, end);
+        text = cut.text;
+        searchFrom = cut.pos;
+    }
+
+    // 2) Banner parameters: |needs-infobox=yes and |needs-infobox=y (whole values only)
+    const flagPattern = /\|[ \t]*needs-infobox[ \t]*=[ \t]*(?:yes|y)(?!\w)/gi;
+    searchFrom = 0;
+    while (true) {
+        flagPattern.lastIndex = searchFrom;
+        const m = flagPattern.exec(text);
+        if (!m) break;
+        removed.push(m[0]);
+        const cut = cutMatch(text, m.index, m.index + m[0].length);
+        text = cut.text;
+        searchFrom = cut.pos;
+    }
+
+    return { text: text, removed: removed };
+}
+
+// Tells the user what was (or wasn't) removed.
+function notifyNeedsInfoboxResults(removed) {
+    if (!removed.length) {
+        mw.notify('No needs-infobox tags found on the Talk page.', { type: 'info' });
+        return;
+    }
+    console.log('Removed needs-infobox matches:', removed);
+    const $msg = $('<div>');
+    $('<p>').text('Removed ' + removed.length + ' needs-infobox match' +
+        (removed.length === 1 ? '' : 'es') + ' from the Talk page:').appendTo($msg);
+    const $list = $('<ul>').appendTo($msg);
+    removed.forEach(str => {
+        $('<li>').append($('<code>').css('white-space', 'pre-wrap').text(str)).appendTo($list);
+    });
+    mw.notify($msg, { type: 'success', autoHideSeconds: 'long' });
 }
 
 // ============================================================
 // REMOVE FLAGS
 // ============================================================
-async function removeProjectFlags(removeImageNeeded) {
-    const articleTitle = mw.config.get('wgPageName');  // Get the article's title
-	// console.log("articleTitle = " + articleTitle);
-    const talkPageTitle = 'Talk:' + articleTitle;       // Construct the talk page title
-	// console.log("talkPageTitle = " + talkPageTitle);
+// Removes the imageneeded flag and/or needs-infobox tags from the article's Talk
+// page in a single fetch and a single edit. Returns { removedCount } (the number
+// of needs-infobox matches that were removed and saved).
+async function removeProjectFlags(article, removeImageNeeded, removeNeedsInfobox) {
+    const baseTitle = article || mw.config.get('wgPageName').replace(/_/g, ' ');
+    const talkPageTitle = 'Talk:' + baseTitle;
     const api = new mw.Api();
+    const outcome = { removedCount: 0 };
 
     try {
         // Step 1: Fetch the talk page content
@@ -275,60 +386,86 @@ async function removeProjectFlags(removeImageNeeded) {
             action: "query",
             prop: "revisions",
             rvprop: "content",
-            titles: talkPageTitle,   // Make sure to fetch the talk page
+            rvslots: "main",
+            titles: talkPageTitle,
             formatversion: 2
         });
 
-        // Check if we got valid data back
-        if (!result.query || !result.query.pages) {
+        const page = result.query && result.query.pages && result.query.pages[0];
+        if (!page || page.invalid) {
+            mw.notify('Unable to look up the Talk page.', { type: 'error' });
+            return outcome;
+        }
+        if (page.missing) {
+            mw.notify('Talk page does not exist; nothing to remove.', { type: 'info' });
+            return outcome;
+        }
+        const revision = page.revisions && page.revisions[0];
+        const pageText = revision && (revision.slots && revision.slots.main
+            ? revision.slots.main.content : revision.content);
+        if (typeof pageText !== 'string') {
             mw.notify('Talk page content not found.', { type: 'error' });
-            return;
+            return outcome;
+        }
+        if (/^\s*#REDIRECT\b/i.test(pageText)) {
+            mw.notify('Talk page is a redirect; flag removal skipped.', { type: 'info' });
+            return outcome;
         }
 
-        const pageText = result.query.pages[0].revisions[0].content;
-		// console.log("pageText = " + pageText);
-
-        // Step 2: Remove the flags from the WikiProject Albums template
+        // Step 2: Remove the requested flags
         let updatedPageText = pageText;
 
         // Remove the imageneeded flag if it exists
-        if (removeImageNeeded)
-        	updatedPageText = updatedPageText.replace(/\|imageneeded=[^|}]*\s*/g, '');
-			// console.log("updatedPageText 1= " + updatedPageText);
-        	updatedPageText = updatedPageText.replace(/\| imageneeded=[^|}]*\s*/g, '');
-			// console.log("updatedPageText 2= " + updatedPageText);
+        let imageNeededChanged = false;
+        if (removeImageNeeded) {
+            updatedPageText = updatedPageText.replace(/\|imageneeded=[^|}]*\s*/g, '');
+            updatedPageText = updatedPageText.replace(/\| imageneeded=[^|}]*\s*/g, '');
+            imageNeededChanged = updatedPageText !== pageText;
+        }
 
-			const flagCounter = pageText.indexOf("| imageneeded=")
-			// console.log("flagCounter= " + flagCounter);
-			
-			// Step 3: Save the updated content back to the talk page
-				
-			if (updatedPageText !== pageText && flagCounter > 0) {
+        // Remove needs-infobox tags if requested
+        let removed = [];
+        if (removeNeedsInfobox) {
+            const r = removeNeedsInfoboxTags(updatedPageText);
+            updatedPageText = r.text;
+            removed = r.removed;
+        }
 
-				try {
-					await api.edit(talkPageTitle, () => ({
-						text: updatedPageText,
-						summary: "Removed unnecessary flags from banner (script upload via [[User:Widgetkid/RecordingCover.js]])"
-					}));
+        // Step 3: Save the updated content back to the talk page (only if something changed)
+        if (updatedPageText !== pageText) {
+            const summaryParts = [];
+            if (imageNeededChanged) summaryParts.push('Removed unnecessary flags from banner');
+            if (removed.length) summaryParts.push(imageNeededChanged
+                ? 'removed needs-infobox tag(s)' : 'Removed needs-infobox tag(s)');
+            const summary = removed.length
+                ? summaryParts.join('; ') + ' (scripted edit via [[User:Widgetkid/RecordingCover.js|RecordingCover]])'
+                : 'Removed unnecessary flags from banner (script upload via [[User:Widgetkid/RecordingCover.js]])';
 
-					mw.notify("Flags removed successfully! Reloading…");
+            try {
+                await api.edit(talkPageTitle, () => ({
+                    text: updatedPageText,
+                    summary: summary
+                }));
+            } catch (e) {
+                mw.notify('Error editing the talk page.', { type: 'error' });
+                throw e;
+            }
+            outcome.removedCount = removed.length;
+        }
 
-				}
-
-				// Debug: Log the edit result
-
-				catch (e) {
-					mw.notify('Error editing the talk page.', { type: 'error' });
-					throw e;
-				}
-
-			} else {
-				mw.notify('No flags found to remove.', { type: 'info' });
+        // Step 4: Report the results
+        if (removeImageNeeded) {
+            mw.notify(imageNeededChanged ? 'imageneeded flag removed successfully!'
+                : 'No imageneeded flag found to remove.', { type: 'info' });
+        }
+        if (removeNeedsInfobox) {
+            notifyNeedsInfoboxResults(removed);
         }
     } catch (error) {
         console.error('Error:', error);
         mw.notify('Error removing flags from talk page.', { type: 'error' });
     }
+    return outcome;
 }
 
 // ============================================================
@@ -442,7 +579,7 @@ const presets = [
         label: "Victor / RCA Victor Dog (Nipper)",
         author: "Victor / RCA Victor",
         pdTag: "{{PD-US-expired}}",
-        basis: "Based on an 1899 work whose U.S. copyright term has expired."
+        basis: "Victor logo based on an 1899 work whose U.S. copyright term has expired."
     }
 ];
 
@@ -469,7 +606,7 @@ async function setEnglishCaption(api, filename, caption) {
 function uploadChecked(api, fileInput, filename, text) {
     return new Promise((resolve, reject) => {
         api.upload(fileInput, { filename: filename, text: text,
-            comment: 'Uploaded via userscript User:Widgetkid/RecordingCover.js v1.1.0', assert: 'user'
+            comment: 'Uploaded via userscript User:Widgetkid/RecordingCover.js ' + SCRIPT_VERSION, assert: 'user'
         }).done(resolve).fail((code, result) => {
             if (result && result.upload) resolve(result);
             else reject(new Error((result && result.error && result.error.info) || code || 'Upload failed'));
@@ -594,8 +731,13 @@ function openUploadDialogRecording() {
                     <label for="cb_imageneeded-flag">Remove 'imageneeded' flag (albums only)?</label>
                 </p>
 
+                <p style="margin-top:1em;">
+                    <input type="checkbox" id="cb_needsinfobox-flag" checked>
+                    <label for="cb_needsinfobox-flag">Remove needs-infobox tag from Talk page?</label>
+                </p>
+
 				<p style="margin-top:1em; text-align: right;">
-                    <small><a href="https://en.wikipedia.org/wiki/User:Widgetkid/RecordingCover#Change_log" target="_blank" rel="noopener noreferrer">v1.1.0</a></small>
+                    <small><a href="https://en.wikipedia.org/wiki/User:Widgetkid/RecordingCover#Change_log" target="_blank" rel="noopener noreferrer">${SCRIPT_VERSION}</a></small>
                 </p>
 
             </div>
@@ -673,6 +815,7 @@ function openUploadDialogRecording() {
                     const basis = field('upload-pd-basis').val().trim();
                     const addInfobox = field('add-infobox-recording').is(':checked');
                     const removeImageNeeded = field('cb_imageneeded-flag').is(':checked');
+                    const removeNeedsInfobox = field('cb_needsinfobox-flag').is(':checked');
                     if (isPD && !pdTags.includes(pdTag)) {
                         mw.notify('PD Tag required for Public Domain files.', { type: 'error' }); return;
                     }
@@ -732,8 +875,16 @@ function openUploadDialogRecording() {
                                 { type: 'warn' });
                         }
                         try {
-                            await updateInfobox(api, article, uploadedFilename, addInfobox);
-                            if (removeImageNeeded) await removeProjectFlags(removeImageNeeded);
+                            const articleEdited = await updateInfobox(api, article, uploadedFilename, addInfobox);
+                            let talkRemovals = 0;
+                            if (removeImageNeeded || removeNeedsInfobox) {
+                                talkRemovals = (await removeProjectFlags(article, removeImageNeeded, removeNeedsInfobox)).removedCount;
+                            }
+                            // Reload only after every step has finished. Wait longer when the
+                            // removed-content notification needs time to be read.
+                            if (articleEdited) {
+                                setTimeout(() => { location.reload(); }, talkRemovals ? 10000 : 4000);
+                            }
                         } catch (err) {
                             console.error(err);
                             mw.notify('File uploaded, but an article or talk-page update failed.', { type: 'error' });
