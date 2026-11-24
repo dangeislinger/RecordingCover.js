@@ -485,6 +485,32 @@ const pdTags = ['{{PD-US-expired}}', '{{PD-textlogo}}', '{{PD-simple}}', '{{PD-U
 // Picking a preset also checks the Public Domain checkbox.
 // ============================================================
 const presets = [
+// TEMPLATE START
+//    {
+//        label: "XYZ Records whizbang logo",
+//        author: "XYZ Records",
+//        pdTag: "{{}}",
+//        basis: "BLAHBLAHBLAH"
+//    },
+// TEMPLATE END
+    {
+        label: "Atlantic Records fan/swirl logo",
+        author: "Atlantic Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Consists only of simple geometric shapes and lettering below the threshold of originality."
+    },
+    {
+        label: "Atlantic Records stylized text",
+        author: "Atlantic Records",
+        pdTag: "{{PD-simple}}",
+        basis: "Consists only of simple geometric shapes and lettering below the threshold of originality."
+    },
+    {
+        label: "Bluebird Records flying bird",
+        author: "Bluebird Records",
+        pdTag: "{{PD-US-no notice}}",
+        basis: "Bluebird logo published without copyright before 1978. Victor logo based on an 1899 work whose U.S. copyright term has expired."
+    },
     {
         label: "Brunswick Records 'B' shield & scrollwork",
         author: "Brunswick Records",
@@ -538,6 +564,12 @@ const presets = [
         author: "RCA Records",
         pdTag: "{{PD-textlogo}}",
         basis: "Comprises a stylized text wordmark that is not eligible for copyright."
+    },
+    {
+        label: "Odeon Records domed theatre building",
+        author: "Odeon Records",
+        pdTag: "{{PD-US-expired}}",
+        basis: "Published in 1904, so its U.S. copyright term has expired."
     },
     {
         label: "RCA Records Stylized text with lightning",

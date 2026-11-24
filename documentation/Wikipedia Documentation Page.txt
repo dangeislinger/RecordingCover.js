@@ -1,0 +1,55 @@
+{{Infobox Wikipedia user script
+| name        = RecordingCover
+| desc        = Uploads cover art directly from an album or song article page and adds it to the infobox.
+
+| author      = [[User:Widgetkid|Widgetkid]]
+| status      = Beta
+| source      = User:Widgetkid/RecordingCover.js
+| updated     = 22 November 2026
+}}
+{{Warning |heading=Use at your own risk |1=This is script is built by a well-meaning computer science major who hasn't been paid to code for 20+ years. Please consider this a 'beta' product. Please let me know if you encounter any issues. Good luck!<br/><span style="font-family: Century Gothic; font-variant:small-caps; font-size: 110%; ">[[:User:Widgetkid|<b>W</b>idget<b>K</b>id]] <i><sup style="display:inline-flex;rotate:7deg;">[[User talk:Widgetkid|Converse]]</sup></i></span> 00:45, 8 March 2026 (UTC)}}
+
+[[File:Widgetkid RecordingCover.png|thumb|Menu location]]Script at [[User:Widgetkid/RecordingCover.js]]
+
+== Features ==
+*Uploads cover art directly from an album or song article page. The script uploads the file under fair use rationale.
+*Adds the uploaded cover art to the album or song infobox, if one exists.
+*Removes 'imageneeded' flag from talk page banners, if present.
+
+== Installation ==
+*Click the "'''Install'''" button on the top of the page.
+:*Alternatively, copy the line <code>importScript('User:Widgetkid/RecordingCover.js'); ''// Backlink: [[User:Widgetkid/RecordingCover.js|<nowiki>[[User:Widgetkid/RecordingCover.js]]</nowiki>]]''</code> , then paste it into your [[Special:MyPage/common.js|common.js file]].
+
+*After installation, the link "''Upload Book Cover''" will appear in the "''Tools''" menu.
+
+{{Clear}}
+== Parameters ==
+[[File:Widgetkid RecordingCover UI v1.1.1.png|thumb|right|User interface]]
+#'''Article Title''' - The name of the album or song article. Should be auto-populated if you are on the article's page.
+#'''Source of the file''' - The URL of the source where you found the cover art.
+#'''Preset''' - Selecting a value for a record label populates several public domain fields. Optional.
+#'''Author / copyright holder''' - Enter either the recording artist or the label's name.
+#'''Public Domain Checkbox''' - If this file is in the public domain, check this box to send the file to Wikimedia Commons instead of to Wikipedia as a non-free file.
+#'''PD Tag''' - Select the appropriate public domain tag. Required if PD checkbox checked.
+#'''PD Tag Basis''' - Describe why the public domain tag you selected applies to this file. Required if PD checkbox checked.
+#'''Add to Infobox Checkbox''' - Confirm you want to add the cover art to the article's Infobox.
+#'''Remove 'imageneeded tag' Checkbox''' - Confirm you want to remove the [[Template:WikiProject Albums]] parameter 'imageneeded' from the album's talk page. Only works for albums. A similar parameter doesn't exist for songs.
+#'''Remove needs-infobox tag Checkbox''' - Confirm you want to remove any existing needs-infobox tag from the related Talk page.
+
+{{Clear}}
+
+== Kudos ==
+* This a version of {{U|Kingsacrificer}}'s [[User:Kingsacrificer/BookCover.js|BookCover.js]] and [[User:Kingsacrificer/FilmPoster.js|FilmPoster.js]] scripts.
+* Thanks {{U|Iljhgtn}} for posting the other scripts to your tools. Great stuff! {{smiley}}
+
+== Change log ==
+*v1.1.1
+**Added option to remove related talk page tags: "|needs-infobox", <nowiki>{{Infobox requested}}</nowiki>, and <nowiki>{{Reqinfobox}}</nowiki>
+*v1.1.0
+**Added presets that populate other fields for free files.
+**Reordered form fields.
+**Added <nowiki><nowiki></nowiki> wrapper.
+*v1.0.9
+**Added Public Domain option to send free files to Wikimedia Commons.
+**Added creation of File talk pages with relevant Wikiproject tags (either albums or songs).
+*v1.0.8: Initial published version.
